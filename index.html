@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Namaz Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Hind Siliguri',sans-serif;}</style>
+</head>
+<body class="bg-[#0f172a] text-white min-h-screen flex items-center justify-center p-4">
+
+<div id="auth-box" class="bg-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
+  <h1 class="text-3xl font-bold text-center mb-1 text-emerald-400">নামাজ ট্র্যাকার</h1>
+  <p class="text-center text-slate-400 mb-6">আলোর পথে</p>
+  <input id="email" type="email" placeholder="ইমেইল লিখুন" class="w-full p-3 rounded-lg bg-slate-700 mb-3 outline-none">
+  <input id="password" type="password" placeholder="পাসওয়ার্ড (৬+ অক্ষর)" class="w-full p-3 rounded-lg bg-slate-700 mb-4 outline-none">
+  <button onclick="handleAuth()" class="w-full bg-emerald-600 p-3 rounded-lg font-bold hover:bg-emerald-700">লগইন / নতুন একাউন্ট</button>
+  <p id="auth-msg" class="text-center mt-3 text-sm text-amber-300"></p>
+</div>
+
+<div id="app-box" class="hidden bg-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl">
+  <div class="flex justify-between items-center mb-6">
+    <div><h2 class="font-bold text-lg">আসসালামু আলাইকুম!</h2><p id="user-email" class="text-xs text-slate-400"></p></div>
+    <button onclick="logout()" class="text-sm bg-red-600 px-3 py-1.5 rounded-lg">লগআউট</button>
+  </div>
+  <p class="text-sm text-slate-300 mb-3">আজ: <span id="today-date"></span></p>
+  <div id="namaz-list" class="space-y-3"></div>
+  <div class="mt-6 bg-slate-900 p-4 rounded-xl text-center border border-slate-700">
+    <p class="text-slate-400 text-sm">আজকের অগ্রগতি</p>
+    <p id="progress" class="text-3xl font-bold text-emerald-400">0/5</p>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAbDBnt-tvTh8D5ym-svqpW5lhIhiHIl8U",
+  authDomain: "namaz-traker-b1604.firebaseapp.com",
+  projectId: "namaz-traker-b1604",
+  storageBucket: "namaz-traker-b1604.firebasestorage.app",
+  messagingSenderId: "216115508181",
+  appId: "1:216115508181:web:4c238090d4b30bf56d035c",
+  measurementId: "G-7YSMFVWY97"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const namazNames = ["ফজর", "যোহর", "আসর", "মাগরিব", "এশা"];
+const todayStr = new Date().toISOString().split('T')[0];
+document.getElementById('today-date').innerText = new Date().toLocaleDateString('bn-BD', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+
+function handleAuth(){
+  const email = document.getElementById('email').value.trim();
+  const pass = document.getElementById('password').value;
+  const msg = document.getElementById('auth-msg');
+  if(!email || pass.length < 6){ msg.innerText = "সঠিক ইমেইল ও ৬ অক্ষরের পাসওয়ার্ড দিন"; return; }
+  msg.innerText = "অপেক্ষা করুন...";
+  auth.signInWithEmailAndPassword(email, pass).catch(()=>{
+    return auth.createUserWithEmailAndPassword(email, pass);
+  }).catch(e=> msg.innerText = e.message);
+}
+function logout(){ auth.signOut(); }
+auth.onAuthStateChanged(user=>{
+  if(user){
+    document.getElementById('auth-box').classList.add('hidden');
+    document.getElementById('app-box').classList.remove('hidden');
+    document.getElementById('user-email').innerText = user.email;
+    loadNamaz(user.uid);
+  } else {
+    document.getElementById('auth-box').classList.remove('hidden');
+    document.getElementById('app-box').classList.add('hidden');
+  }
+});
+function loadNamaz(uid){
+  db.collection("users").doc(uid).collection("tracker").doc(todayStr).onSnapshot(doc=>{
+    const data = doc.data() || {};
+    let count = 0;
+    const listDiv = document.getElementById('namaz-list');
+    listDiv.innerHTML = "";
+    namazNames.forEach(name=>{
+      const done = data[name] || false;
+      if(done) count++;
+      listDiv.innerHTML += `<label class="flex justify-between items-center bg-slate-700 p-3.5 rounded-xl cursor-pointer hover:bg-slate-600 transition"><span class="font-semibold text-[17px]">${name}</span><input type="checkbox" ${done?'checked':''} onchange="toggleNamaz('${name}', this.checked)" class="w-6 h-6 accent-emerald-500"></label>`;
+    });
+    document.getElementById('progress').innerText = `${count}/5`;
+  });
+}
+function toggleNamaz(name, checked){
+  const uid = auth.currentUser.uid;
+  db.collection("users").doc(uid).collection("tracker").doc(todayStr).set({[name]: checked}, {merge: true});
+}
+</script>
+</body>
+</html>
